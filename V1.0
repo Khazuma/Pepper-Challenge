@@ -1,0 +1,184 @@
+"""
+Pepper Challenge
+Groupe 23 - Koh Ker
+Logiciel
+
+
+Conseil d'utilisation :
+
+Avant de lancer ce logiciel, veillez à ce que les modules Numpy, Scipy ainsi que Termcolor soient bien installés sur
+votre ordinateur. Dans le cas contraire, veuillez vous référer au mode d'emploi disponible sur python.org.
+
+"""
+
+from numpy import array, empty
+from scipy.optimize import fsolve
+from math import log
+from termcolor import colored
+
+
+def system_effet_de_serre(z):
+
+    """
+    Résout le système formé des équations   F[0] = 0,
+                                            F[1] = 0,
+                                            F[2] = 0,
+                                            F[3] = 0,
+                                            F[4] = 0.
+
+    Entrées : Fd, Fi, T_max, h
+    Sorties : P, Fp, Fs, Tp, Ts
+
+    """
+
+    P = z[0]
+    Fp = z[1]
+    Fs = z[2]
+    Tp = z[3]
+    Ts = z[4]
+
+    F = empty(5)
+
+    F[0] = h * (Tp - T_max) + h * (Ts - T_max) - P
+    F[1] = sigma * pow(Tp, 4) - Fp
+    F[2] = sigma * pow(Ts, 4) - Fs
+    F[3] = P + Fp - Fd - Fi
+    F[4] = Fs + h * (Ts - T_max) - Fd - Fp
+
+    return F
+
+
+def effet_de_serre():
+
+    """
+    Calcule la puissance captée par la serre par unité de surface.
+
+    Entrées : Fd, Fi, T_max, h
+    Sorties : P, Fp, Fs, Tp, Ts
+
+    """
+
+    Init = array([1,1,1,1,1])
+    z = fsolve(system_effet_de_serre, Init)
+
+    return z[0], z[1], z[2], z[3], z[4]
+
+
+def ventilation():
+
+    """
+    Calcule le débit d'air nécessaire pour évacuer l'humidité accumulée dans le séchoir.
+
+    Entrées : m_produit, X_0, X_f, t, X_max, P_sat_T_max, X_amb, P_sat_T_amb, P_atm
+    Sorties : Q, J, delta_masse_eau, m_seche, P_vap_max, P_vap_amb
+
+    """
+
+    P_vap_max = X_max * P_sat_T_max
+    Y_max = (M_eau / M_air) * (P_vap_max / (P_atm - P_vap_max))
+    P_vap_amb = X_amb * P_sat_T_amb
+    Y_amb = (M_eau / M_air) * (P_vap_amb / (P_atm - P_vap_amb))
+
+    m_seche = m_produit / (1 + X_0)
+    delta_masse_eau = (X_0 - X_f) * m_seche
+    J = delta_masse_eau / t
+    Q = J / (Y_max - Y_amb)
+
+    return Q, J, delta_masse_eau, m_seche, P_vap_max, P_vap_amb
+
+
+def environnement():
+
+    """
+    Calcule les flux direct et indirect captée par unité de surface.
+
+    Entrées : T_amb, X_amb
+    Sorties : Fd, Fi, T_sky, T_dp
+
+    """
+
+    T_dp = (Lh * M_eau * T_amb) / (Lh * M_eau - R * T_amb * log(X_amb))
+    T_sky = T_amb * (0.711 + 0.0056 * T_dp + 7.3e-5 * pow(T_dp, 2)) ** (1/4)
+    Fi = sigma * pow(T_sky, 4)
+    Fd = E - Fi
+
+    return Fd, Fi, T_sky, T_dp
+
+
+def dimension():
+
+    """
+    Calcule la longueur du séchoir (ayant fixé une largeur arbitraire).
+
+    Entrées : Q, T_max, T_amb, J, P, l
+    Sorties : P_tot, L
+
+    """
+
+    P_tot = (Q * Cp * (T_max - T_amb) + J * Lh) / 3600
+    L = P_tot / (P * l)
+
+    return P_tot, L
+
+
+# Constantes
+
+sigma = 5.670374e-8 # W.m^-2.K^-4
+M_eau = 18.01527e-3 # kg.mol^-1
+M_air = 28.9647e-3 # kg.mol^-1
+R = 8.3144621 # J.mol^-1.K^-1
+Lh = 2345.4e3 # J/kg
+Cp = 3.95e3 # J.kg-1.K-1
+
+
+# Inputs
+
+m_produit = 0.5 # kg
+X_0 = 3 # kg_eau/kg_matière_sèche
+X_f = 0.1 # kg_eau/kg_matière_sèche
+t = 5 # heures
+
+X_max = 20/100
+X_amb = 60/100
+T_max = 65 + 273.15 # K
+P_sat_T_max = 25.042e3 # Pa
+T_amb = 20 + 273.15 # K
+P_sat_T_amb = 2.34e3 # Pa
+P_atm = 101325 # Pa
+
+h = 3.92 # W.m^-2.K^-1
+E = 1000 # W.m^-2
+
+l = 0.3 # m
+H = 0.1 # m
+
+
+# Intermediaires
+
+Fd = environnement()[0]
+Fi = environnement()[1]
+T_sky = environnement()[2]
+T_dp = environnement()[3]
+
+P = effet_de_serre()[0]
+Fp = effet_de_serre()[1]
+Fs = effet_de_serre()[2]
+Tp = effet_de_serre()[3]
+Ts = effet_de_serre()[4]
+
+Q = ventilation()[0]
+J = ventilation()[1]
+delta_masse_eau = ventilation()[2]
+m_seche = ventilation()[3]
+P_vap_max = ventilation()[4]
+P_vap_amb = ventilation()[5]
+
+P_tot = dimension()[0]
+L = dimension()[1]
+
+
+# Outputs
+
+print("Puissance := ", P, "W/m\xb2")
+print("Débit := ", Q, "m\xb3/h")
+print("Longueur := ", L, "m")
