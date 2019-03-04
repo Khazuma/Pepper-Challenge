@@ -7,7 +7,7 @@ Logiciel
 Conseil d'utilisation :
 
 Avant de lancer ce logiciel, veillez à ce que les modules Numpy, Scipy ainsi que Termcolor soient bien installés sur
-votre ordinateur. Dans le cas contraire, veuillez vous référer au mode d'emploi disponible sur python.org.
+votre ordinateur. Dans le cas contraire, veuillez vous référer au mode d'emploi d'installation disponible sur python.org.
 
 """
 
@@ -31,7 +31,7 @@ def environnement():
     """
 
     T_dp = (Lh * M_eau * T_amb) / (Lh * M_eau - R * T_amb * log(X_amb)) # OK
-    T_sky = T_amb * (0.711 + 0.0056 * (T_dp - 273.15) + 7.3e-5 * pow(T_dp - 273.15, 2)) ** (1/4)
+    T_sky = T_amb * (0.711 + 0.0056 * (T_dp - 273.15) + 7.3e-5 * (T_dp - 273.15) ** 2) ** (1/4)
     Fi = sigma * pow(T_sky, 4) # ?
     Fd = E - Fi # ? (valeur de E ?)
 
@@ -57,11 +57,11 @@ def ventilation():
     m_seche = m_produit / (1 + X_0)
     delta_masse_eau = (X_0 - X_f) * m_seche
     J = delta_masse_eau / t
-    Q_massique = J / (Y_max - Y_amb) # ?
+    Q_massique = J / (Y_max - Y_amb) # OK
 
     rho_air = (M_air * P_atm) / (R * T_max) # OK
     Q_volumique = Q_massique / rho_air
-    vitesse_air = Q_volumique / (pi * pow(rayon_ventilo, 2))
+    vitesse_air = Q_volumique / (pi * grand_rayon_ventilo ** 2 - pi * petit_rayon_ventilo ** 2)
 
 
     return m_seche, delta_masse_eau, J, rho_air, Q_massique, Q_volumique, vitesse_air
@@ -69,12 +69,27 @@ def ventilation():
 
 def research_h():
 
+    """
+    Calcule la valeur du coefficient de transfert thermique.
+    
+    Constantes / Valeurs des tables utilisées : condu_therm, Cp, visco_cinem, diffu_therm, g
+    Entrées : rho_air, T_max, T_plaque, T_amb, Lc
+    Sorties : h
+    
+    """
+
     diffu_therm = condu_therm / (rho_air * Cp)
     Pr = visco_cinem / diffu_therm
     coeff_dilat = 1 / T_max
-    Gr = (g * coeff_dilat * (T_plaque - T_amb) * pow(Lc, 3) * pow(rho_air, 2)) / pow(visco_dynam, 2)
-    Nu = 0.1 * pow(Pr * Gr, 1/3)
-    h = Nu * condu_therm / Lc # OK (valeur de T_plaque ?)
+    Gr = (g * coeff_dilat * (T_plaque - T_amb) * pow(Lc, 3)) / visco_cinem ** 2
+    Ra = Pr * Gr
+
+    if Ra > 10 ** 7:
+        Nu = 0.1 * Ra ** (1/3)
+    else:
+        Nu = 0.59 * Ra ** (1/4)
+
+    h = Nu * condu_therm / Lc
 
     return h
 
@@ -159,9 +174,8 @@ Cp = 1.008e3 # J.kg^-1.K^-1
 
 condu_therm = 29.16e-3 # W.m^-1.K^-1
 visco_cinem = 19.36e-6 # m^2.s^-1
-visco_dynam = 20.21e-6 # Pa.s
 g = 9.81 # m.s^-1
-Lc = 0.15 # m
+Lc = 0.9 # m
 
 
 # Inputs
@@ -173,14 +187,15 @@ T_amb = 22 + 273.15 # K
 X_amb = 60/100 # (%)
 P_atm = 101325 # Pa
 
-T_plaque = 69 + 273.15 # K
+T_plaque = 67 + 273.15 # K
 
 m_produit = 0.5 # kg
 X_0 = 3 # kg_eau / kg_matière_sèche
 X_f = 0.1 # kg_eau / kg_matière_sèche
 t = 5 * 3600 # s
 
-rayon_ventilo = 0.02 # m
+grand_rayon_ventilo = 0.02 # m
+petit_rayon_ventilo = 0.01 # m
 l = 0.3 # m
 
 
@@ -219,8 +234,8 @@ L = dimension()[1]
 
 print(colored("Température de rosée := " + str(round(T_dp - 273.15, 2)) + "°C", color="green"))
 print(colored("Température du ciel := " + str(round(T_sky - 273.15, 2)) + "°C", color=None))
-print(colored("Flux direct := " + str(round(Fd, 4)) + " W/m\xb2", color="red"))
-print(colored("Flux indirect := " + str(round(Fi, 4)) + " W/m\xb2", color="red"))
+print(colored("Flux direct := " + str(round(Fd, 4)) + " W/m\xb2", color="green"))
+print(colored("Flux indirect := " + str(round(Fi, 4)) + " W/m\xb2", color="green"))
 print(colored("Pression de vapeur à l'intérieur du séchoir := " + str(round(P_vap_max, 4)) + " Pa", color=None))
 print(colored("Humidité absolue à l'intérieur du séchoir := " + str(round(Y_max, 4)) + " kg_eau/kg_air", color="green"))
 print(colored("Pression de vapeur du milieu ambiant := " + str(round(P_vap_amb, 4)) + " Pa", color=None))
@@ -230,8 +245,8 @@ print(colored("Quantité de matière sèche := " + str(m_seche * 1000) + " g", c
 print(colored("Variation de masse d'eau du produit := " + str(delta_masse_eau * 1000) + " g", color=None))
 print(colored("Vitesse d'évaporation de l'eau := " + str(round(J * 1000, 4)) + " g/s", color=None))
 print(colored("Masse volumique de l'air := " + str(round(rho_air, 4)) + " kg/m\xb3", color="green"))
-print(colored("Débit massique := " + str(round(Q_massique, 8)) + " kg/s", color="red"))
-print(colored("Débit volumique := " + str(round(Q_volumique, 8)) + " m\xb3/s", color="red"))
+print(colored("Débit massique := " + str(round(Q_massique, 8)) + " kg/s", color="green"))
+print(colored("Débit volumique := " + str(round(Q_volumique, 8)) + " m\xb3/s", color=None))
 print(colored("Vitesse de l'air à l'entrée du séchoir := " + str(round(vitesse_air, 4)) + " m/s", color="red"), end="\n\n")
 
 print(colored("Coefficient de transfert thermique := " + str(round(h, 4)) + " W/(m\xb2.K)", color="green"), end="\n\n")
@@ -239,8 +254,8 @@ print(colored("Coefficient de transfert thermique := " + str(round(h, 4)) + " W/
 print(colored("Puissance := " + str(round(P, 4)) + " W/m\xb2", color="green"))
 print(colored("Flux émis par le plastique := " + str(round(Fp, 4)) + " W/m\xb2", color=None))
 print(colored("Flux émis par le sol := " + str(round(Fs, 4)) + " W/m\xb2", color=None))
-print(colored("Température du plastique := " + str(round(Tp - 273.15, 2)) +  "°C", color=None))
+print(colored("Température du plastique := " + str(round(Tp - 273.15, 2)) +  "°C", color="red"))
 print(colored("Température du sol := " + str(round(Ts - 273.15, 2)) + "°C", color=None), end="\n\n")
 
-print(colored("Puissance totale captée par la serre := " + str(round(P_tot, 4)) + " W", color="red"))
+print(colored("Puissance totale captée par la serre := " + str(round(P_tot, 4)) + " W", color="green"))
 print(colored("Longueur du séchoir := " + str(round(L * 100, 2)) + " cm", color="red"))
