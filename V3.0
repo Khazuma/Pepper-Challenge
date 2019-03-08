@@ -1,13 +1,12 @@
 """
 Pepper Challenge
-Groupe 23 - Koh Ker
-Logiciel
+Groupe 23
+Logiciel de calcul des dimensions d’un séchoir solaire
 
 
-Conseil d'utilisation :
-
-Avant de lancer ce logiciel, veillez à ce que les modules Numpy, Scipy ainsi que Termcolor soient bien installés sur
-votre ordinateur. Dans le cas contraire, veuillez vous référer au mode d'emploi d'installation disponible sur python.org.
+AVERTISSEMENT :
+Avant de lancer ce logiciel, veillez à ce que les modules NUMPY, SCIPY ainsi que TERMCOLOR soient bien installés sur votre ordinateur.
+Dans le cas contraire, veuillez procéder au téléchargement des modules via PIP (puis éventuellement via l'environnement de développement).
 
 """
 
@@ -18,50 +17,64 @@ from math import log, pi
 from termcolor import colored
 
 
-def environnement():
+def flux():
 
     """
-    Calcule :   - les flux direct et indirect captés par unité de surface,
-                - les humidités absolues à l'intérieur et à l'extérieur du séchoir.
+    Calcule les flux direct et indirect reçus par le séchoir par unité de surface.
 
-    Constantes / Valeurs des tables utilisées : sigma, M_eau, M_air, R, Lh, E, P_sat_T_max, P_sat_T_amb
-    Entrées : T_amb, X_amb, X_max, P_atm
-    Sorties : T_dp, T_sky, Fd, Fi, P_vap_max, Y_max, P_vap_amb, Y_amb
+    Constantes / Valeurs des tables utilisées :  sigma ; R ; Lh ; M_eau
+    Entrées :  T_amb ; X_amb
+    Sorties :  T_dp ; T_sky ; Fi
 
     """
 
-    T_dp = (Lh * M_eau * T_amb) / (Lh * M_eau - R * T_amb * log(X_amb)) # OK
+    T_dp = (Lh * M_eau * T_amb) / (Lh * M_eau - R * T_amb * log(X_amb))
     T_sky = T_amb * (0.711 + 0.0056 * (T_dp - 273.15) + 7.3e-5 * (T_dp - 273.15) ** 2) ** (1/4)
-    Fi = sigma * pow(T_sky, 4) # ?
-    Fd = E - Fi # ? (valeur de E ?)
+    Fi = sigma * pow(T_sky, 4)
+
+    return T_dp, T_sky, Fi
+
+
+def humidite():
+
+    """
+    Calcule l'humidité absolue ambiante et,
+            l'humditié absolue à l'intérieur du séchoir, à température et humidité maximales.
+
+    Constantes / Valeurs des tables utilisées :  M_eau ; M_air ; P_atm ; P_sat_T_amb ; P_sat_T_max
+    Entrées :  X_amb ; X_max
+    Sorties :  P_vap_amb ; P_vap_max ; Y_amb ; Y_max
+
+    """
+
+    P_vap_amb = X_amb * P_sat_T_amb
+    Y_amb = (M_eau / M_air) * (P_vap_amb / (P_atm - P_vap_amb))
 
     P_vap_max = X_max * P_sat_T_max
-    Y_max = (M_eau / M_air) * (P_vap_max / (P_atm - P_vap_max)) # OK
-    P_vap_amb = X_amb * P_sat_T_amb
-    Y_amb = (M_eau / M_air) * (P_vap_amb / (P_atm - P_vap_amb)) # OK
+    Y_max = (M_eau / M_air) * (P_vap_max / (P_atm - P_vap_max))
 
-    return T_dp, T_sky, Fd, Fi, P_vap_max, Y_max, P_vap_amb, Y_amb
+    return P_vap_amb, Y_amb, P_vap_max, Y_max
 
 
 def ventilation():
 
     """
-    Calcule le débit d'air nécessaire pour évacuer l'humidité accumulée dans le séchoir.
+    Calcule le débit d'air minimal nécessaire pour évacuer l'humidité en excès dans le séchoir.
 
-    Constantes / Valeurs des tables utilisées : M_air, R
-    Entrées : m_produit, X_0, X_f, t, Y_max, Y_amb, T_amb, P_atm
-    Sorties : m_seche, delta_masse_eau, J, rho_air, Q_massique, Q_volumique, vitesse_air
+    Constantes / Valeurs des tables utilisées :  M_air ; R ; P_atm
+    Entrées :  m_produit ; X_0 ; X_f ; t ; T_amb ; Y_amb ; Y_max ; surface_ventilo
+    Sorties :  m_seche ; delta_masse_eau ; J ; rho_air ; Q_massique ; Q_volumique ; vitesse_air
 
     """
 
     m_seche = m_produit / (1 + X_0)
     delta_masse_eau = (X_0 - X_f) * m_seche
     J = delta_masse_eau / t
-    Q_massique = J / (Y_max - Y_amb) # OK
+    Q_massique = J / (Y_max - Y_amb)
 
-    rho_air = (M_air * P_atm) / (R * T_max) # OK
+    rho_air = (M_air * P_atm) / (R * T_max)
     Q_volumique = Q_massique / rho_air
-    vitesse_air = Q_volumique / (pi * grand_rayon_ventilo ** 2 - pi * petit_rayon_ventilo ** 2)
+    vitesse_air = Q_volumique / surface_ventilo
 
 
     return m_seche, delta_masse_eau, J, rho_air, Q_massique, Q_volumique, vitesse_air
@@ -70,21 +83,21 @@ def ventilation():
 def research_h():
 
     """
-    Calcule la valeur du coefficient de transfert thermique.
-    
-    Constantes / Valeurs des tables utilisées : condu_therm, Cp, visco_cinem, diffu_therm, g
-    Entrées : rho_air, T_max, T_plaque, T_amb, Lc
+    Calcule la valeur du coefficient de transfert thermique h.
+
+    Constantes / Valeurs des tables utilisées : condu_therm ; Cp_air ; visco_cinem ; diffu_therm ; g
+    Entrées : rho_air ; T_amb ; T_max ; T_plaque ; Lc
     Sorties : h
-    
+
     """
 
-    diffu_therm = condu_therm / (rho_air * Cp)
+    diffu_therm = condu_therm / (rho_air * Cp_air)
     Pr = visco_cinem / diffu_therm
     coeff_dilat = 1 / T_max
-    Gr = (g * coeff_dilat * (T_plaque - T_amb) * pow(Lc, 3)) / visco_cinem ** 2
+    Gr = (g * coeff_dilat * (T_plaque - T_amb) * Lc ** 3) / visco_cinem ** 2
     Ra = Pr * Gr
 
-    if Ra > 10 ** 7:
+    if Ra > 10 ** 7:    # Pour Lc = 0.9 m, nous avons que Ra > 10^7.
         Nu = 0.1 * Ra ** (1/3)
     else:
         Nu = 0.59 * Ra ** (1/4)
@@ -103,9 +116,9 @@ def system_effet_de_serre(z):
                                             F[3] = 0,
                                             F[4] = 0.
 
-    Constantes / Valeurs des tables utilisées : sigma
-    Entrées : Fd, Fi, T_max, h
-    Sorties : P, Fp, Fs, Tp, Ts
+    Constantes / Valeurs des tables utilisées :  sigma
+    Entrées :  Fd ; Fi ; T_max ; h
+    Sorties :  P ; Fp ; Fs ; Tp ; Ts
 
     """
 
@@ -131,9 +144,9 @@ def effet_de_serre():
     """
     Calcule la puissance captée par la serre par unité de surface.
 
-    Constantes / Valeurs des tables utilisées : sigma
-    Entrées : Fd, Fi, T_max, h
-    Sorties : P, Fp, Fs, Tp, Ts
+    Constantes / Valeurs des tables utilisées :  sigma
+    Entrées :  Fd ; Fi ; T_max ; h
+    Sorties :  P ; Fp ; Fs ; Tp ; Ts
 
     """
 
@@ -148,68 +161,77 @@ def dimension():
     """
     Calcule la longueur du séchoir (en ayant préalablement fixé une largeur).
 
-    Constantes / Valeurs des tables utilisées : Lh, Cp
-    Entrées : Q_massique, T_max, T_amb, J, P, l
-    Sorties : P_tot, L
+    Constantes / Valeurs des tables utilisées :  Lh ; Cp_air
+    Entrées :  Q_massique ; T_amb ; T_max ; J ; P ; l
+    Sorties :  P_tot ; L
 
     """
 
-    P_tot = (Q_massique * Cp * (T_max - T_amb) + J * Lh)
+    P_tot = (Q_massique * Cp_air * (T_max - T_amb) + J * Lh)
     L = P_tot / (P * l)
 
     return P_tot, L
 
 
-# Constantes / Valeurs des tables
+# Constantes
 
-sigma = 5.670374e-8 # W.m^-2.K^-4
-M_eau = 18.01527e-3 # kg.mol^-1
-M_air = 28.9647e-3 # kg.mol^-1
-R = 8.3144621 # J.mol^-1.K^-1
-Lh = 2448.8e3 # J/kg
-E = 1000 # W.m^-2
-P_sat_T_max = 25.042e3 # Pa
-P_sat_T_amb = 2.646e3 # Pa
-Cp = 1.008e3 # J.kg^-1.K^-1
+sigma = 5.670374e-8 # W.m^-2.K^-4    (constante de Stefan-Boltzmann)
+M_eau = 18.01527e-3 # kg.mol^-1    (masse molaire de l'eau)
+M_air = 28.9647e-3 # kg.mol^-1    (masse molaire de l'air)
+R = 8.3144621 # J.mol^-1.K^-1    (constante des gaz parfaits)
+g = 9.80665 # m.s^-2    (accélération normale de la pesanteur terrestre)
+P_atm = 101325 # Pa    (pression atmosphérique normale)
 
-condu_therm = 29.16e-3 # W.m^-1.K^-1
-visco_cinem = 19.36e-6 # m^2.s^-1
-g = 9.81 # m.s^-1
-Lc = 0.9 # m
+Lc = 0.9 # m    (longueur caractéristique)
+grand_rayon_ventilo = 0.02 # m    (rayon du ventilateur)
+petit_rayon_ventilo = 0.01 # m
 
 
 # Inputs
 
-T_max = 65 + 273.15 # K
-X_max = 20/100 # (%)
+print(colored("\nCaractéristiques de l'environnement", attrs=["underline"]))
+T_amb = float(input(colored("Température ambiante (", color="cyan") + colored("en °C", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan"))) + 273.15
+X_amb = float(input(colored("Humidité relative ambiante (", color="cyan") + colored("en %", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan"))) / 100
+Fd = float(input(colored("Flux solaire direct moyen (", color="cyan") + colored("en W/m\xb2", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan")))
 
-T_amb = 22 + 273.15 # K
-X_amb = 60/100 # (%)
-P_atm = 101325 # Pa
+print(colored("\nCaractéristiques du produit", attrs=["underline"]))
+m_produit = float(input(colored("Masse du produit à sécher (", color="cyan") + colored("en kg", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan")))
+X_0 = float(input(colored("Teneur en eau initiale du produit (", color="cyan") + colored("en kg_eau / kg_matière_sèche", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan")))
+X_f = float(input(colored("Teneur en eau finale du produit (", color="cyan") + colored("en kg_eau / kg_matière_sèche", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan")))
 
-T_plaque = 67 + 273.15 # K
+print(colored("\nContraintes", attrs=["underline"]))
+T_max = float(input(colored("Température maximale à l'intérieur du séchoir (", color="cyan") + colored("en °C", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan"))) + 273.15
+X_max = float(input(colored("Humidité relative maximale à l'intérieur du séchoir (", color="cyan") + colored("en %", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan"))) / 100
+t = float(input(colored("Durée de séchage (", color="cyan") + colored("en heures", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan"))) * 3600
 
-m_produit = 0.5 # kg
-X_0 = 3 # kg_eau / kg_matière_sèche
-X_f = 0.1 # kg_eau / kg_matière_sèche
-t = 5 * 3600 # s
+print(colored("\nChoix de la largeur", attrs=["underline"]))
+l = float(input(colored("Largeur du séchoir (", color="cyan") + colored("en m", color="white", attrs=["bold", "underline"]) + colored(") := ", color="cyan")))
 
-grand_rayon_ventilo = 0.02 # m
-petit_rayon_ventilo = 0.01 # m
-l = 0.3 # m
+
+# Valeurs des tables
+
+list_P_sat_T_amb = {18: 2.065e3, 19: 2.198e3, 20: 2.34e3, 21: 2.489e3, 22: 2.646e3, 23: 2.812e3, 24: 2.986e3, 25: 3.171e3, 26: 3.365e3, 27: 3.569e3, 28: 3.784e3, 29: 4.01e3, 30: 4.248e3, 31: 4.498e3, 32: 4.76e3, 33: 5.036e3, 34: 5.326e3, 35: 5.63e3, 36: 5.948e3, 37: 6.283}    # dict (T_amb ; P_sat_T_amb)
+
+Lh = 2345.4e3 # J.kg^-1    (chaleur latente de vaporisation de l'eau, à 65°C)
+Cp_air = 1.008e3 # J.kg^-1.K^-1    (capacité calorifique de l'air à pression constante, à 65°C)
+condu_therm = 29.16e-3 # W.m^-1.K^-1    (conductivité thermique de l'air, à 65°C)
+visco_cinem = 19.36e-6 # m^2.s^-1    (viscosité cinématique de l'air, à 65°C)
+P_sat_T_amb = list_P_sat_T_amb[round(T_amb - 273.15)]    # (pression saturante de l'eau, à température ambiante)
+P_sat_T_max = 25.042e3 # Pa    (pression saturante de l'eau, à 65°C)
 
 
 # Intermédiaires
 
-T_dp = environnement()[0]
-T_sky = environnement()[1]
-Fd = environnement()[2]
-Fi = environnement()[3]
-P_vap_max = environnement()[4]
-Y_max = environnement()[5]
-P_vap_amb = environnement()[6]
-Y_amb = environnement()[7]
+T_dp = flux()[0]
+T_sky = flux()[1]
+Fi = flux()[2]
 
+P_vap_amb = humidite()[0]    # (pression de vapeur de l'eau, à température ambiante)
+Y_amb = humidite()[1]
+P_vap_max = humidite()[2]    # (pression de vapeur de l'eau, à la température maximale intérieure du séchoir)
+Y_max = humidite()[3]
+
+surface_ventilo = pi * grand_rayon_ventilo ** 2 - pi * petit_rayon_ventilo ** 2    # (section du ventilateur traversée par l'air)
 m_seche = ventilation()[0]
 delta_masse_eau = ventilation()[1]
 J = ventilation()[2]
@@ -218,6 +240,7 @@ Q_massique = ventilation()[4]
 Q_volumique = ventilation()[5]
 vitesse_air = ventilation()[6]
 
+T_plaque = T_max    # (température du plastique lorsque la température intérieure du séchoir atteint les 65°C)
 h = research_h()
 
 P = effet_de_serre()[0]
@@ -226,36 +249,54 @@ Fs = effet_de_serre()[2]
 Tp = effet_de_serre()[3]
 Ts = effet_de_serre()[4]
 
+while round(T_plaque, 1) != round(Tp, 1):    # Ajuste la valeur de h en fonction de la température du plastique
+
+    if round(T_plaque, 1) < round(Tp, 1):
+        T_plaque += 0.02
+    else:
+        T_plaque -= 0.02
+
+    h = research_h()
+    P = effet_de_serre()[0]
+    Fp = effet_de_serre()[1]
+    Fs = effet_de_serre()[2]
+    Tp = effet_de_serre()[3]
+    Ts = effet_de_serre()[4]
+
 P_tot = dimension()[0]
 L = dimension()[1]
 
 
 # Outputs
 
-print(colored("Température de rosée := " + str(round(T_dp - 273.15, 2)) + "°C", color="green"))
-print(colored("Température du ciel := " + str(round(T_sky - 273.15, 2)) + "°C", color=None))
-print(colored("Flux direct := " + str(round(Fd, 4)) + " W/m\xb2", color="green"))
-print(colored("Flux indirect := " + str(round(Fi, 4)) + " W/m\xb2", color="green"))
-print(colored("Pression de vapeur à l'intérieur du séchoir := " + str(round(P_vap_max, 4)) + " Pa", color=None))
-print(colored("Humidité absolue à l'intérieur du séchoir := " + str(round(Y_max, 4)) + " kg_eau/kg_air", color="green"))
-print(colored("Pression de vapeur du milieu ambiant := " + str(round(P_vap_amb, 4)) + " Pa", color=None))
-print(colored("Humidité absolue du milieu ambiant := " + str(round(Y_amb, 4)) + " kg_eau/kg_air", color="green"), end="\n\n")
+print(colored("\n\nFlux", attrs=["underline"]))
+print("\nTempérature de rosée := " + colored(str(round(T_dp - 273.15, 1)) + "°C", color="red"))
+print("Température du ciel := " + colored(str(round(T_sky - 273.15, 1)) + "°C", color="red"))
+print("Flux direct := " + colored(str(round(Fd, 2)) + " W/m\xb2", color="red"))
+print("Flux indirect := " + colored(str(round(Fi, 2)) + " W/m\xb2", color="red"))
 
-print(colored("Quantité de matière sèche := " + str(m_seche * 1000) + " g", color=None))
-print(colored("Variation de masse d'eau du produit := " + str(delta_masse_eau * 1000) + " g", color=None))
-print(colored("Vitesse d'évaporation de l'eau := " + str(round(J * 1000, 4)) + " g/s", color=None))
-print(colored("Masse volumique de l'air := " + str(round(rho_air, 4)) + " kg/m\xb3", color="green"))
-print(colored("Débit massique := " + str(round(Q_massique, 8)) + " kg/s", color="green"))
-print(colored("Débit volumique := " + str(round(Q_volumique, 8)) + " m\xb3/s", color=None))
-print(colored("Vitesse de l'air à l'entrée du séchoir := " + str(round(vitesse_air, 4)) + " m/s", color="red"), end="\n\n")
+print(colored("\nHumidités", attrs=["underline"]))
+print("Humidité absolue à l'intérieur du séchoir := " + colored(str(round(Y_max, 5)) + " kg_eau/kg_air", color="red"))
+print("Humidité absolue du milieu ambiant := " + colored(str(round(Y_amb, 5)) + " kg_eau/kg_air", color="red"))
 
-print(colored("Coefficient de transfert thermique := " + str(round(h, 4)) + " W/(m\xb2.K)", color="green"), end="\n\n")
+print(colored("\nVentilation", attrs=["underline"]))
+print("Quantité de matière sèche := " + colored(str(m_seche * 1000) + " g", color="red"))
+print("Variation de masse d'eau du produit := " + colored(str(delta_masse_eau * 1000) + " g", color="red"))
+print("Vitesse d'évaporation de l'eau := " + colored(str(round(J * 1000, 4)) + " g/s", color="red"))
+print("Masse volumique de l'air := " + colored(str(round(rho_air, 4)) + " kg/m\xb3", color="red"))
+print("Débit massique := " + colored(str(round(Q_massique, 8)) + " kg/s", color="red"))
+print("Débit volumique := " + colored(str(round(Q_volumique, 8)) + " m\xb3/s", color="red"))
+print("Vitesse de l'air à l'entrée du séchoir := " + colored(str(round(vitesse_air, 4)) + " m/s", color="red"))
 
-print(colored("Puissance := " + str(round(P, 4)) + " W/m\xb2", color="green"))
-print(colored("Flux émis par le plastique := " + str(round(Fp, 4)) + " W/m\xb2", color=None))
-print(colored("Flux émis par le sol := " + str(round(Fs, 4)) + " W/m\xb2", color=None))
-print(colored("Température du plastique := " + str(round(Tp - 273.15, 2)) +  "°C", color="red"))
-print(colored("Température du sol := " + str(round(Ts - 273.15, 2)) + "°C", color=None), end="\n\n")
+print(colored("\nPuissance captée", attrs=["underline"]))
+print("\nCoefficient de transfert thermique := " + colored(str(round(h, 4)) + " W/(m\xb2.K)", color="red"))
 
-print(colored("Puissance totale captée par la serre := " + str(round(P_tot, 4)) + " W", color="green"))
-print(colored("Longueur du séchoir := " + str(round(L * 100, 2)) + " cm", color="red"))
+print("Puissance captée par le séchoir := " + colored(str(round(P, 4)) + " W/m\xb2", color="red"))
+print("Flux émis par le plastique := " + colored(str(round(Fp, 4)) + " W/m\xb2", color="red"))
+print("Flux émis par le sol := " + colored(str(round(Fs, 4)) + " W/m\xb2", color="red"))
+print("Température du plastique := " + colored(str(round(Tp - 273.15, 1)) +  "°C", color="red"))
+print("Température du sol := " + colored(str(round(Ts - 273.15, 1)) + "°C", color="red"))
+
+print(colored("\nDimensionnement", attrs=["underline"]))
+print("Puissance totale captée par le séchoir := " + colored(str(round(P_tot, 4)) + " W", color="red"))
+print("Longueur du séchoir := " + colored(str(round(L, 4)) + " m", color="red"))
